@@ -1,0 +1,15 @@
+{
+  "name": "devconnect-backend",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "dev": "nodemon src/app.js",
+    "start": "node src/app.js"
+  },
+  "author": "vikrant singh bandral",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^4.21.2"
+  }
+}
