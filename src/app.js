@@ -12,8 +12,12 @@ app.post('/signup', async (req, res) => {
         password: '123456',
     });
     
-    const user1 = await user.save();
-    res.send("Data is saved!")
+    try {
+        await user.save();
+        res.send("Data is saved!")
+    } catch(err) {
+        res.status(400).send("Error saving the user: " + err);
+    }
 
 });
 
