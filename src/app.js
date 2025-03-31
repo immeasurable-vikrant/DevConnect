@@ -7,7 +7,6 @@ app.use(express.json());
 
 app.post('/signup', async (req, res) => {
 	const userObj = req.body;
-	console.log(userObj);
 	const user = new User(userObj);
 
 	try {
@@ -23,7 +22,7 @@ app.get('/user', async (req, res) => {
 	const userEmail = req.body.emailId;
 	try {
 		const userObj = await User.find({ emailId: userEmail });
-		if(userObj.length < 1){
+		if (userObj.length < 1) {
 			res.status(400).send('User not found!');
 		}
 		res.send(userObj);
@@ -48,33 +47,41 @@ app.delete("/user", async (req, res) => {
 		const userId = req.body.userId;
 		const deletedUser = await User.findByIdAndDelete(userId);
 		res.send(deletedUser);
-	} catch(err) {
+	} catch (err) {
 		console.log(err)
 	}
 })
 
 //Update API - delete a user from the database
-app.patch("/user", async (req, res) => {
+app.patch("/user/:userId", async (req, res) => {
 	try {
-		const userId = req.body.userId;
+		const userId = req.params.userId;
 		const data = req.body;
-		await User.findByIdAndUpdate({_id: userId}, data);
+	
+		const ALLOWED_UPDATES = ["skills", "photoUrl", "about", "age", "gender"];
+		const isUpdateAllowed = Object.keys(data).every((elem) => ALLOWED_UPDATES.includes(elem));
+		if (!isUpdateAllowed) {
+			return res.status(400).send("Error updating the user - update not allowed");
+		}
+		await User.findByIdAndUpdate({ _id: userId }, data, { runValidators: true });
 		res.send("User Updated successfully!");
-	} catch(err) {
+	} catch (err) {
 		console.log(err)
+		res.status(400).send("Error updating the user");
 	}
 })
 
-app.put("/user", async (req, res) => {
-	try {
-		const userId = req.body.userId;
-		const data = req.body;
-		await User.findByIdAndUpdate({_id: userId}, data);
-		res.send("User Updated successfully!");
-	} catch(err) {
-		console.log(err)
-	}
-})
+// app.put("/user", async (req, res) => {
+// 	try {
+// 		const userId = req.body.userId;
+// 		const data = req.body;
+// 		await User.findByIdAndUpdate({_id: userId}, data, { runValidators: false });
+// 		res.send("User Updated successfully!");
+// 	} catch(err) {
+// 		console.log("err")
+// 		res.status(400).send("Error updating the user");
+// 	}
+// })
 
 connectDB()
 	.then(() => {
