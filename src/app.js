@@ -6,7 +6,6 @@ const bcrypt = require('bcrypt');
 const cookieParser = require('cookie-parser');
 const jwt = require('jsonwebtoken');
 const userAuth = require('./middlewares/auth');
-const secretKey = 'devConnect@123';
 
 const app = express();
 app.use(express.json());
@@ -19,7 +18,6 @@ app.post('/signup', async (req, res) => {
 		// 2. Encrypt the password
 		const { firstName, lastName, emailId, password } = req.body;
 		const passwordHash = await bcrypt.hash(password, 10);
-		console.log('passwordHash', passwordHash);
 		// 3. Creating a new instance of the User model and Save the data
 		const user = new User({
 			firstName,
@@ -44,18 +42,18 @@ app.post('/login', async (req, res) => {
 		if (!user) {
 			throw new Error('Invalid Credentials!');
 		}
-		const isPasswordValid = await bcrypt.compare(
-			password.trim(),
-			user.password.trim()
-		);
+		const isPasswordValid = await user.validatePassword(password);
 
 		if (isPasswordValid) {
 			//Create a JWT token
-			const token = await jwt.sign({ _id: user._id }, secretKey);
-			console.log('token', token);
-
+			const token = await user.getJWT();
 			// add the token to the cookie and send the response back to the user
-			res.cookie('token', token);
+			res.cookie(
+				'token',
+				token,
+				{ expires: new Date(Date.now() + 86400000) },
+				{ httpOnly: true }
+			);
 			res.send('Successfully logged in!!');
 		} else {
 			res.status(400).send('Invalid password');
@@ -70,7 +68,8 @@ app.get('/profile', userAuth, async (req, res) => {
 		const user = req.user;
 		res.send(user);
 	} catch (err) {
-		console.log("err", err)
+		res.send(err);
+		console.log('err', err);
 	}
 });
 
