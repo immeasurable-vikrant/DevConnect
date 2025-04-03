@@ -1,15 +1,32 @@
 const express = require('express');
 const { connectDB } = require('./config/database');
 const User = require('./models/user');
+const validateSignupData = require('./utils/validation');
+const bcrypt = require('bcrypt');
+const cookieParser = require('cookie-parser');
+const jwt = require('jsonwebtoken');
+const userAuth = require('./middlewares/auth');
+const secretKey = 'devConnect@123';
 
 const app = express();
 app.use(express.json());
+app.use(cookieParser());
 
 app.post('/signup', async (req, res) => {
-	const userObj = req.body;
-	const user = new User(userObj);
-
 	try {
+		// 1. Validation of data
+		validateSignupData(req);
+		// 2. Encrypt the password
+		const { firstName, lastName, emailId, password } = req.body;
+		const passwordHash = await bcrypt.hash(password, 10);
+		console.log('passwordHash', passwordHash);
+		// 3. Creating a new instance of the User model and Save the data
+		const user = new User({
+			firstName,
+			lastName,
+			password: passwordHash,
+			emailId,
+		});
 		await user.save();
 		res.send('Data is saved!');
 	} catch (err) {
@@ -17,59 +34,45 @@ app.post('/signup', async (req, res) => {
 	}
 });
 
-// GET API - get user by email
-app.get('/user', async (req, res) => {
-	const userEmail = req.body.emailId;
+app.post('/login', async (req, res) => {
 	try {
-		const userObj = await User.find({ emailId: userEmail });
-		if (userObj.length < 1) {
-			res.status(400).send('User not found!');
+		const { emailId, password } = req.body;
+		// if(validators.validateEmail(emailId)) {
+		// 	res.status(400).send('Invalid emailId');
+		// }
+		const user = await User.findOne({ emailId });
+		if (!user) {
+			throw new Error('Invalid Credentials!');
 		}
-		res.send(userObj);
+		const isPasswordValid = await bcrypt.compare(
+			password.trim(),
+			user.password.trim()
+		);
+
+		if (isPasswordValid) {
+			//Create a JWT token
+			const token = await jwt.sign({ _id: user._id }, secretKey);
+			console.log('token', token);
+
+			// add the token to the cookie and send the response back to the user
+			res.cookie('token', token);
+			res.send('Successfully logged in!!');
+		} else {
+			res.status(400).send('Invalid password');
+		}
 	} catch (err) {
-		console.log("something went wrong!");
+		res.status(400).send('Error saving the user: ' + err);
 	}
 });
 
-// Feed API - GET API - get all the users from the database
-app.get('/feed', async (req, res) => {
+app.get('/profile', userAuth, async (req, res) => {
 	try {
-		const users = await User.find({});
-		res.send(users);
+		const user = req.user;
+		res.send(user);
 	} catch (err) {
-		console.log("something went wrong!");
+		console.log("err", err)
 	}
 });
-
-// Delete API - delete a user from the database
-app.delete("/user", async (req, res) => {
-	try {
-		const userId = req.body.userId;
-		const deletedUser = await User.findByIdAndDelete(userId);
-		res.send(deletedUser);
-	} catch (err) {
-		console.log(err)
-	}
-})
-
-//Update API - delete a user from the database
-app.patch("/user/:userId", async (req, res) => {
-	try {
-		const userId = req.params.userId;
-		const data = req.body;
-	
-		const ALLOWED_UPDATES = ["skills", "photoUrl", "about", "age", "gender"];
-		const isUpdateAllowed = Object.keys(data).every((elem) => ALLOWED_UPDATES.includes(elem));
-		if (!isUpdateAllowed) {
-			return res.status(400).send("Error updating the user - update not allowed");
-		}
-		await User.findByIdAndUpdate({ _id: userId }, data, { runValidators: true });
-		res.send("User Updated successfully!");
-	} catch (err) {
-		console.log(err)
-		res.status(400).send("Error updating the user");
-	}
-})
 
 // app.put("/user", async (req, res) => {
 // 	try {
