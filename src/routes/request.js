@@ -6,16 +6,16 @@ const User = require('../models/user');
 const mongoose = require('mongoose');
 
 requestRouter.post(
-	'/request/send/:status/:toUserId',
+	'/request/send/:status/:fromUserId',
 	userAuth,
 	async (req, res) => {
 		try {
-			const fromUserId = req.user._id;
-			const toUserId = req.params.toUserId;
+			const toUserId = req.user._id;
+			const fromUserId = req.params.fromUserId;
 			const status = req.params.status;
 
-			// Validate the toUserId format
-			if (!mongoose.Types.ObjectId.isValid(toUserId)) {
+			// Validate the fromUserId format
+			if (!mongoose.Types.ObjectId.isValid(fromUserId)) {
 				return res.status(400).json({
 					message: 'Invalid user ID format!',
 				});
@@ -29,8 +29,8 @@ requestRouter.post(
 				});
 			}
 
-			// Check if toUserId is an existing user
-			const toUser = await User.findById(toUserId);
+			// Check if fromUserId is an existing user
+			const toUser = await User.findById(fromUserId);
 			if (!toUser) {
 				return res.status(404).json({
 					message: 'User not found!',
@@ -40,8 +40,8 @@ requestRouter.post(
 			// Check if there is an existing connection request
 			const existingConnectionRequest = await ConnectionRequestModel.findOne({
 				$or: [
-					{ fromUserId, toUserId },
-					{ fromUserId: toUserId, toUserId: fromUserId },
+					{ toUserId, fromUserId },
+					{ toUserId: fromUserId, fromUserId: toUserId },
 				],
 			});
 
@@ -53,8 +53,8 @@ requestRouter.post(
 
 			// Create a new connection request
 			const newConnectionRequest = new ConnectionRequestModel({
-				fromUserId,
 				toUserId,
+				fromUserId,
 				status,
 			});
 
@@ -73,9 +73,39 @@ requestRouter.post(
 requestRouter.post(
 	'/request/review/:status/:requestId',
 	userAuth,
-	(req, res) => {
-        
-    }
+	async (req, res) => {
+		try {
+			const loggedInUser = req.user;
+			const { status, requestId } = req.params;
+			// validate the status
+			const allowedStatus = ['accepted', 'rejected'];
+			if (!allowedStatus.includes(status)) {
+				return res.status(400).json({
+					message: 'Status not allowed!',
+				});
+			}
+
+			// loggedInUser == fromUserId
+			// status = interested
+			//request Id should be valid
+			const connectionRequest = await ConnectionRequestModel.findOne({
+				_id: requestId,
+				fromUserId: loggedInUser._id,
+				status: 'interested',
+			});
+			if (!connectionRequest) {
+				return res
+					.status(404)
+					.json({ message: 'Connection request not found!' });
+			}
+			connectionRequest.status = status;
+			const data = await connectionRequest.save();
+
+			res.json({ message: 'Connection request' + ' ' + status, data });
+		} catch (err) {
+			console.log('ERROR: ', err);
+		}
+	}
 );
 
 module.exports = requestRouter;
