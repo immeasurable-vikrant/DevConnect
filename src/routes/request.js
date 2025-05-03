@@ -1,21 +1,26 @@
 const express = require('express');
 const { userAuth } = require('../middlewares/auth');
-const ConnectionRequestModel = require('../models/connectionRequest');
-const requestRouter = express.Router();
-const User = require('../models/user');
 const mongoose = require('mongoose');
+const { ConnectionRequest } = require('../models/connectionRequest');
+const { User } = require('../models/user'); // assuming you have a User model
+const requestRouter = express.Router();
 
 requestRouter.post(
-	'/request/send/:status/:fromUserId',
+	'/request/send/:status/:toUserId',
 	userAuth,
 	async (req, res) => {
 		try {
-			const toUserId = req.user._id;
-			const fromUserId = req.params.fromUserId;
-			const status = req.params.status;
+			const fromUserId = req.user._id;
+			const toUserId = req.params.toUserId;
+			const status = req.params.status.toLowerCase();
 
-			// Validate the fromUserId format
-			if (!mongoose.Types.ObjectId.isValid(fromUserId)) {
+			console.log("Request params:", { fromUserId, toUserId, status });
+
+			// Validate ObjectIds
+			if (
+				!mongoose.Types.ObjectId.isValid(fromUserId) ||
+				!mongoose.Types.ObjectId.isValid(toUserId)
+			) {
 				return res.status(400).json({
 					message: 'Invalid user ID format!',
 				});
@@ -24,51 +29,53 @@ requestRouter.post(
 			// Validate status
 			const allowedStatus = ['ignored', 'interested'];
 			if (!allowedStatus.includes(status)) {
-				return res.status(400).json({
-					message: 'Invalid status type!' + ' ' + status,
-				});
+				return res.status(400).json({ message: 'Invalid status type!' });
 			}
 
-			// Check if fromUserId is an existing user
-			const toUser = await User.findById(fromUserId);
+			// Check if target user exists
+			const toUser = await User.findById(toUserId);
 			if (!toUser) {
-				return res.status(404).json({
-					message: 'User not found!',
-				});
+				return res.status(404).json({ message: 'Target user not found!' });
 			}
 
-			// Check if there is an existing connection request
-			const existingConnectionRequest = await ConnectionRequestModel.findOne({
+			// Check if a connection already exists (in either direction)
+			const existingConnectionRequest = await ConnectionRequest.findOne({
 				$or: [
-					{ toUserId, fromUserId },
-					{ toUserId: fromUserId, fromUserId: toUserId },
+					{ fromUserId: toUserId, toUserId: fromUserId },
+					{ fromUserId, toUserId },
 				],
 			});
 
 			if (existingConnectionRequest) {
-				return res.status(400).send({
-					message: 'Connection request already exists!',
-				});
+				return res
+					.status(400)
+					.json({ message: 'Connection Request Already Exists!' });
 			}
 
 			// Create a new connection request
-			const newConnectionRequest = new ConnectionRequestModel({
-				toUserId,
+			const newConnectionRequest = new ConnectionRequest({
 				fromUserId,
+				toUserId,
 				status,
 			});
 
 			const data = await newConnectionRequest.save();
-			res.json({
-				message:
-					req.user.firstName + ' is ' + status + ' in ' + toUser.firstName,
+
+			res.status(200).json({
+				message: `${req.user.firstName} is ${status} in ${toUser.firstName}`,
 				data,
 			});
 		} catch (err) {
-			res.status(400).send('ERROR: ' + err);
+			console.error("Error details:", err);
+			res.status(500).json({ 
+				message: 'Internal Server Error', 
+				error: err.message,
+				stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
+			});
 		}
 	}
 );
+
 
 requestRouter.post(
 	'/request/review/:status/:requestId',
@@ -88,7 +95,7 @@ requestRouter.post(
 			// loggedInUser == fromUserId
 			// status = interested
 			//request Id should be valid
-			const connectionRequest = await ConnectionRequestModel.findOne({
+			const connectionRequest = await ConnectionRequest.findOne({
 				_id: requestId,
 				fromUserId: loggedInUser._id,
 				status: 'interested',

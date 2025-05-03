@@ -1,7 +1,7 @@
 const express = require('express');
 const { userAuth } = require('../middlewares/auth');
-const ConnectionRequestModel = require('../models/connectionRequest');
-const User = require('../models/user');
+const { ConnectionRequest } = require('../models/connectionRequest');
+const { User } = require('../models/user');
 
 const userRouter = express.Router();
 const USER_SAFE_DATA = [
@@ -17,7 +17,7 @@ const USER_SAFE_DATA = [
 userRouter.get('/user/requests/received', userAuth, async (req, res) => {
 	try {
 		const loggedInUser = req.user;
-		const connectionRequest = await ConnectionRequestModel.find({
+		const connectionRequest = await ConnectionRequest.find({
 			fromUserId: loggedInUser._id,
 			status: 'interested',
 		}).populate('toUserId', USER_SAFE_DATA);
@@ -34,7 +34,7 @@ userRouter.get('/user/requests/received', userAuth, async (req, res) => {
 userRouter.get('/user/connections', userAuth, async (req, res) => {
 	try {
 		const loggedInUser = req.user;
-		const connectionRequests = await ConnectionRequestModel.find({
+		const connectionRequests = await ConnectionRequest.find({
 			$or: [
 				{ toUserId: loggedInUser._id, status: 'accepted' },
 				{ fromUserId: loggedInUser._id, status: 'accepted' },
@@ -74,7 +74,7 @@ userRouter.get('/feed', userAuth, async (req, res) => {
 		const loggedInUser = req.user;
 
 		// Find all connection requests (sent + received)
-		const connectionRequests = await ConnectionRequestModel.find({
+		const connectionRequests = await ConnectionRequest.find({
 			$or: [{ fromUserId: loggedInUser._id }, { toUserId: loggedInUser._id }],
 		})
 			.select(['fromUserId', 'toUserId'])

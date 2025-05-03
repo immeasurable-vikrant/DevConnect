@@ -1,8 +1,10 @@
 const express = require('express');
 const { connectDB } = require('./config/database');
 const cookieParser = require('cookie-parser');
+const cors = require('cors');
 
 const app = express();
+app.use(cors({ origin: 'http://localhost:5173', credentials: true }));
 app.use(express.json());
 app.use(cookieParser());
 
@@ -20,8 +22,8 @@ app.use('/', userRouter);
 
 connectDB()
 	.then(() => {
-		app.listen(3005, () => {
-			console.log('server is listening on 3005!');
+		app.listen(7777, () => {
+			console.log('server is listening on 7777!');
 		});
 	})
 	.catch((err) => {
